@@ -63,32 +63,17 @@ const Create = () => {
     setPalette(paletteData);
   };
 
-  // Create a GIF from frames (simplified version)
-  const createGifFromFrames = async (frames) => {
-    // In a real implementation, we would use a library like gif.js
-    // For this demo, we'll simulate creating a GIF by using the first frame
-    // You would need to add gif.js to the project for full implementation
-    return frames[0].canvas.toDataURL();
-  };
-
   // Handle drawing completion
-  const handleDrawingComplete = async (finalImage, animatedFrames) => {
+  const handleDrawingComplete = (finalImage) => {
     // Store the final image
     setImage(finalImage);
     
-    // Convert frames to GIF if we have frames
-    if (animatedFrames && animatedFrames.length > 0) {
-      try {
-        // Create a GIF from the frames (in a real implementation)
-        const gifUrl = await createGifFromFrames(animatedFrames);
-        setAnimatedGif(gifUrl);
-        
-        // Show preview with the rotating GIF
-        setShowPreview(true);
-      } catch (error) {
-        console.error("Error creating GIF:", error);
-      }
-    }
+    // Convert to data URL
+    const imageUrl = finalImage.canvas ? finalImage.canvas.toDataURL() : null;
+    setAnimatedGif(imageUrl);
+    
+    // Show preview
+    setShowPreview(true);
   };
 
   // Generate a new random design
@@ -123,9 +108,9 @@ const Create = () => {
       return;
     }
 
-    // Ensure we have a completed drawing and animation
-    if (!image || !animatedGif) {
-      alert("Please wait for the drawing and animation to complete before minting.");
+    // Ensure we have a completed drawing
+    if (!image) {
+      alert("Please wait for the drawing to complete before minting.");
       return;
     }
     
@@ -175,7 +160,7 @@ const Create = () => {
           strokeWeight: strokeWeight
         },
         imageUrl: image?.canvas?.toDataURL?.() || null,
-        animatedGifUrl: animatedGif, // Store the animated GIF URL
+        animatedGifUrl: animatedGif, // Store the image URL
         mintDate: new Date().toISOString()
       });
       
@@ -188,12 +173,12 @@ const Create = () => {
     }
   };
 
-  // Download the current GIF
-  const handleDownloadGif = () => {
+  // Download the current image
+  const handleDownloadImage = () => {
     if (animatedGif) {
       const link = document.createElement('a');
       link.href = animatedGif;
-      link.download = `Spirograph_${seed}.gif`;
+      link.download = `Spirograph_${seed}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -225,10 +210,14 @@ const Create = () => {
             <div className="preview-container">
               <h3>Your Animated Spirograph</h3>
               <div className="animation-preview">
-                <img src={animatedGif} alt="Animated Spirograph" className="preview-gif" />
+                <img 
+                  src={animatedGif} 
+                  alt="Animated Spirograph" 
+                  className="preview-gif rotating-image" 
+                />
               </div>
               <div className="preview-actions">
-                <button onClick={handleDownloadGif} className="btn-secondary">Download GIF</button>
+                <button onClick={handleDownloadImage} className="btn-secondary">Download Image</button>
                 <button 
                   onClick={handleMint}
                   className="btn-primary"

@@ -51,13 +51,89 @@ const SpiroCanvas = ({
       let colorTransition = 0;
       let rarityText = "";
       let currentSeed = seed || Math.floor(p.random(1, 10001));
-      let rotatingFrames = []; // To store frames for the 360° rotation GIF
       
       // Helper function to find greatest common divisor
       const findGCD = (a, b) => {
         a = Math.round(a);
         b = Math.round(b);
         return b === 0 ? a : findGCD(b, a % b);
+      };
+
+      // Calculate the maximum boundaries of the pattern to ensure it fits
+      const calculatePatternBoundaries = () => {
+        let maxX = 0;
+        let maxY = 0;
+        
+        // Sample many points to find the maximum extent
+        for (let step = 0; step < maxT; step += 0.1) {
+          let x = 0;
+          let y = 0;
+          
+          // Calculate position based on shape type (same as in draw)
+          switch(shapeType) {
+            case "Hypotrochoid":
+              x = (params.R - params.r1) * p.cos(step) + params.d * p.cos(((params.R - params.r1) / params.r1) * step);
+              y = (params.R - params.r1) * p.sin(step) - params.d * p.sin(((params.R - params.r1) / params.r1) * step);
+              break;
+            case "Epitrochoid":
+              x = (params.R + params.r1) * p.cos(step) - params.d * p.cos(((params.R + params.r1) / params.r1) * step);
+              y = (params.R + params.r1) * p.sin(step) - params.d * p.sin(((params.R + params.r1) / params.r1) * step);
+              break;
+            case "Rhodonea":
+              let rhodoneaRadius = 250 * p.cos(params.k * step);
+              x = rhodoneaRadius * p.cos(step);
+              y = rhodoneaRadius * p.sin(step);
+              break;
+            case "Lissajous":
+              x = params.A * p.sin(params.a * step + params.delta);
+              y = params.B * p.sin(params.b * step);
+              break;
+            case "OrganicFlow":
+              let baseRadius = 150;
+              let noiseTime = step * params.speed;
+              
+              let radius = baseRadius;
+              for (let i = 0; i < params.waves; i++) {
+                let noiseFactor = p.noise(
+                  p.cos(step + i) * params.noiseScale, 
+                  p.sin(step + i) * params.noiseScale, 
+                  noiseTime
+                );
+                radius += p.sin(step * (i+1) * params.complexity) * params.amplitude * noiseFactor;
+              }
+              
+              x = radius * p.cos(step);
+              y = radius * p.sin(step);
+              
+              x += p.sin(step * 3.5) * 20 * p.noise(noiseTime * 2, 0);
+              y += p.cos(step * 2.7) * 20 * p.noise(0, noiseTime * 2);
+              break;
+          }
+          
+          // Update max boundaries
+          maxX = Math.max(maxX, Math.abs(x));
+          maxY = Math.max(maxY, Math.abs(y));
+        }
+        
+        return { maxX, maxY };
+      };
+
+      // Get the scale factor needed to fit the pattern
+      const getScaleFactor = () => {
+        const { maxX, maxY } = calculatePatternBoundaries();
+        const maxExtent = Math.max(maxX, maxY);
+        
+        // Canvas size is 600x600, center is at 300,300
+        // Leave a 50px margin on all sides
+        const maxAllowedExtent = 250; // (600/2 - 50)
+        
+        // If pattern is too big, scale it down
+        if (maxExtent > maxAllowedExtent) {
+          return maxAllowedExtent / maxExtent;
+        }
+        
+        // Otherwise, keep original scale
+        return 1.0;
       };
 
       // Helper function to draw the complete pattern in one go
@@ -68,6 +144,9 @@ const SpiroCanvas = ({
         
         let prevX = null;
         let prevY = null;
+        
+        // Get the scale factor to ensure pattern fits within canvas
+        const scaleFactor = getScaleFactor();
         
         // Draw the entire pattern in one go
         for (let step = 0; step < maxT; step += 0.02) {
@@ -115,8 +194,7 @@ const SpiroCanvas = ({
               break;
           }
           
-          // Apply scaling
-          let scaleFactor = 1.0; // Fixed scale factor
+          // Apply dynamic scaling to ensure pattern fits
           x *= scaleFactor;
           y *= scaleFactor;
           
@@ -130,41 +208,10 @@ const SpiroCanvas = ({
         }
       };
       
-      // Capture rotating animation frames
+      // Get the final image when completed - simplified
       const captureRotatingAnimation = () => {
-        // Reset canvas for clean animation
-        p.background(0);
-        
-        // Store the current parameters
-        const originalParams = { ...params };
-        
-        // We'll create 30 frames for a smooth animation
-        rotatingFrames = [];
-        
-        // Create 30 frames rotating the pattern around 360°
-        for (let angle = 0; angle < 360; angle += 12) { // 12° steps = 30 frames
-          p.push();
-          p.translate(p.width / 2, p.height / 2);
-          p.rotate(p.radians(angle));
-          
-          // Use the stored params to draw the pattern
-          drawCompletePattern();
-          
-          // Capture the frame
-          rotatingFrames.push(p.get());
-          
-          // Clear for next frame
-          p.background(0);
-          p.pop();
-        }
-        
-        // Restore original parameters
-        params = originalParams;
-        
-        // Return to normal drawing
-        p.background(0);
-        
-        return rotatingFrames;
+        // Simply return the complete canvas as is
+        return p.get();
       };
       
       // Select shape type based on seed and rarity
@@ -277,7 +324,6 @@ const SpiroCanvas = ({
         p.noFill();
         
         // Reset drawing variables
-        rotatingFrames = [];
         t = 0;
         prevX = null;
         prevY = null;
@@ -349,6 +395,9 @@ const SpiroCanvas = ({
         currentColor = p.lerpColor(startCol, endCol, colorTransition);
         p.stroke(currentColor);
 
+        // Get the appropriate scale factor to fit pattern in canvas
+        const scaleFactor = getScaleFactor();
+
         let x = 0;
         let y = 0;
 
@@ -398,8 +447,7 @@ const SpiroCanvas = ({
             break;
         }
 
-        // Apply scaling effects - simplified to just 1.0 scale
-        let scaleFactor = 1.0;
+        // Apply dynamic scaling to ensure pattern fits
         x *= scaleFactor;
         y *= scaleFactor;
 
@@ -467,8 +515,7 @@ const SpiroCanvas = ({
               break;
           }
           
-          // Apply scaling effects - simplified to just 1.0 scale
-          let scaleFactor = 1.0;
+          // Apply dynamic scaling to ensure pattern fits
           nextX *= scaleFactor;
           nextY *= scaleFactor;
           
@@ -504,12 +551,11 @@ const SpiroCanvas = ({
           p.noLoop(); // Stop drawing when complete
           setIsDrawing(false);
           
-          // Create the rotating animation frames
-          const animatedFrames = captureRotatingAnimation();
+          // Get the final image
+          const finalImage = captureRotatingAnimation();
           
           // Notify parent that drawing is complete
-          const finalImage = p.get();
-          onDrawingComplete && onDrawingComplete(finalImage, animatedFrames);
+          onDrawingComplete && onDrawingComplete(finalImage);
         }
         
         p.pop();

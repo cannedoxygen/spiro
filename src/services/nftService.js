@@ -77,3 +77,26 @@ export const findAvailableSeed = () => {
   
   return null; // Should never reach here if we check size first
 };
+
+// Get user's minted NFTs
+export const getUserNFTs = () => {
+  try {
+    return JSON.parse(localStorage.getItem('userNFTs')) || [];
+  } catch (error) {
+    console.error('Error loading user NFTs:', error);
+    return [];
+  }
+};
+
+// Save an NFT to the user's collection
+export const saveUserNFT = (nftData) => {
+  try {
+    const userNFTs = getUserNFTs();
+    userNFTs.push(nftData);
+    localStorage.setItem('userNFTs', JSON.stringify(userNFTs));
+    return true;
+  } catch (error) {
+    console.error('Error saving NFT:', error);
+    return false;
+  }
+};
