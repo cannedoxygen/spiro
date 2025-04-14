@@ -68,11 +68,12 @@ const Create = () => {
     // Store the final image
     setImage(finalImage);
     
-    // Convert to data URL
-    const imageUrl = finalImage.canvas ? finalImage.canvas.toDataURL() : null;
-    setAnimatedGif(imageUrl);
+    // Convert to data URL - explicitly use PNG format to preserve transparency
+    const imageUrl = finalImage && finalImage.canvas ? finalImage.canvas.toDataURL('image/png') : null;
     
-    // Show preview
+    console.log("Image generated:", imageUrl ? "Success" : "Failed");
+    
+    setAnimatedGif(imageUrl);
     setShowPreview(true);
   };
 
@@ -159,8 +160,8 @@ const Create = () => {
           colors: palette?.colors,
           strokeWeight: strokeWeight
         },
-        imageUrl: image?.canvas?.toDataURL?.() || null,
-        animatedGifUrl: animatedGif, // Store the image URL
+        imageUrl: animatedGif, // Store the transparent PNG
+        animatedGifUrl: animatedGif, // Same image, will be displayed with CSS rotation
         mintDate: new Date().toISOString()
       });
       
@@ -210,11 +211,13 @@ const Create = () => {
             <div className="preview-container">
               <h3>Your Animated Spirograph</h3>
               <div className="animation-preview">
-                <img 
-                  src={animatedGif} 
-                  alt="Animated Spirograph" 
-                  className="preview-gif rotating-image" 
-                />
+                <div className="img-container rotating-image">
+                  <img 
+                    src={animatedGif} 
+                    alt="Animated Spirograph"
+                    className="preview-gif"
+                  />
+                </div>
               </div>
               <div className="preview-actions">
                 <button onClick={handleDownloadImage} className="btn-secondary">Download Image</button>

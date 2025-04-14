@@ -27,14 +27,19 @@ const SpiroCanvas = ({
         {name: "Pastel Vapor", colors: ["#FF6EC7", "#FFC8DD", "#A0C4FF", "#BDB2FF", "#FFADAD"], rarity: "Legendary"}
       ];
 
-      // Shape rarity distribution - updated to make Lissajous the most rare
+      // Shape rarity distribution
       const shapeRarity = {
         "Rhodonea": "Common", // 40%
         "Epitrochoid": "Uncommon", // 30%
         "Hypotrochoid": "Rare", // 20%
         "OrganicFlow": "Super Rare", // 8%
-        "Lissajous": "Legendary" // 2% (now most rare)
+        "Lissajous": "Legendary" // 2%
       };
+
+      // Create a separate graphics buffer with transparency
+      let transparentCanvas;
+      // Keep a copy of the rendered pattern
+      let finalRenderedPattern;
 
       // Variables for drawing
       let shapeType = "";
@@ -69,7 +74,7 @@ const SpiroCanvas = ({
           let x = 0;
           let y = 0;
           
-          // Calculate position based on shape type (same as in draw)
+          // Calculate position based on shape type
           switch(shapeType) {
             case "Hypotrochoid":
               x = (params.R - params.r1) * p.cos(step) + params.d * p.cos(((params.R - params.r1) / params.r1) * step);
@@ -136,82 +141,10 @@ const SpiroCanvas = ({
         return 1.0;
       };
 
-      // Helper function to draw the complete pattern in one go
-      const drawCompletePattern = () => {
-        p.stroke(currentColor);
-        p.strokeWeight(1); // Set to 1 as requested
-        p.noFill();
-        
-        let prevX = null;
-        let prevY = null;
-        
-        // Get the scale factor to ensure pattern fits within canvas
-        const scaleFactor = getScaleFactor();
-        
-        // Draw the entire pattern in one go
-        for (let step = 0; step < maxT; step += 0.02) {
-          let x = 0;
-          let y = 0;
-          
-          // Calculate position based on shape type
-          switch(shapeType) {
-            case "Hypotrochoid":
-              x = (params.R - params.r1) * p.cos(step) + params.d * p.cos(((params.R - params.r1) / params.r1) * step);
-              y = (params.R - params.r1) * p.sin(step) - params.d * p.sin(((params.R - params.r1) / params.r1) * step);
-              break;
-            case "Epitrochoid":
-              x = (params.R + params.r1) * p.cos(step) - params.d * p.cos(((params.R + params.r1) / params.r1) * step);
-              y = (params.R + params.r1) * p.sin(step) - params.d * p.sin(((params.R + params.r1) / params.r1) * step);
-              break;
-            case "Rhodonea":
-              let rhodoneaRadius = 250 * p.cos(params.k * step);
-              x = rhodoneaRadius * p.cos(step);
-              y = rhodoneaRadius * p.sin(step);
-              break;
-            case "Lissajous":
-              x = params.A * p.sin(params.a * step + params.delta);
-              y = params.B * p.sin(params.b * step);
-              break;
-            case "OrganicFlow":
-              let baseRadius = 150;
-              let noiseTime = step * params.speed;
-              
-              let radius = baseRadius;
-              for (let i = 0; i < params.waves; i++) {
-                let noiseFactor = p.noise(
-                  p.cos(step + i) * params.noiseScale, 
-                  p.sin(step + i) * params.noiseScale, 
-                  noiseTime
-                );
-                radius += p.sin(step * (i+1) * params.complexity) * params.amplitude * noiseFactor;
-              }
-              
-              x = radius * p.cos(step);
-              y = radius * p.sin(step);
-              
-              x += p.sin(step * 3.5) * 20 * p.noise(noiseTime * 2, 0);
-              y += p.cos(step * 2.7) * 20 * p.noise(0, noiseTime * 2);
-              break;
-          }
-          
-          // Apply dynamic scaling to ensure pattern fits
-          x *= scaleFactor;
-          y *= scaleFactor;
-          
-          // Draw line segment
-          if (prevX !== null) {
-            p.line(prevX, prevY, x, y);
-          }
-          
-          prevX = x;
-          prevY = y;
-        }
-      };
-      
-      // Get the final image when completed - simplified
+      // Get the final image when completed
       const captureRotatingAnimation = () => {
-        // Simply return the complete canvas as is
-        return p.get();
+        // We'll just return the complete rendered pattern on the transparent canvas
+        return finalRenderedPattern;
       };
       
       // Select shape type based on seed and rarity
@@ -303,7 +236,10 @@ const SpiroCanvas = ({
 
       // Reset sketch with new parameters
       const resetSketch = () => {
+        // Clear both the main canvas and the transparent canvas
         p.background(0);
+        transparentCanvas.clear();
+        
         p.randomSeed(currentSeed);
         
         // Pick a random palette with weighted probabilities
@@ -357,13 +293,20 @@ const SpiroCanvas = ({
 
       // p5.js setup function
       p.setup = function() {
+        // Create main canvas
         const canvas = p.createCanvas(600, 600);
         canvas.style('display', 'block');
         canvas.style('margin', '0 auto');
         
+        // Create a transparent graphics buffer for the finished product
+        transparentCanvas = p.createGraphics(600, 600);
+        transparentCanvas.clear(); // Start with transparent background
+        
         p.frameRate(60);
         p.strokeJoin(p.ROUND);
         p.strokeCap(p.ROUND);
+        transparentCanvas.strokeJoin(p.ROUND);
+        transparentCanvas.strokeCap(p.ROUND);
         
         // Initialize with the provided seed or generate a random one
         currentSeed = seed || Math.floor(p.random(1, 10001));
@@ -377,11 +320,15 @@ const SpiroCanvas = ({
 
       // p5.js draw function
       p.draw = function() {
-        // Clear canvas once at the beginning
+        // Clear main canvas once at the beginning
         if (p.frameCount === 1) {
           p.background(0);
         }
         
+        // Get the appropriate scale factor to fit pattern in canvas
+        const scaleFactor = getScaleFactor();
+        
+        // Draw on the main canvas - black background visible during creation
         p.push();
         p.translate(p.width / 2, p.height / 2);
         
@@ -394,9 +341,6 @@ const SpiroCanvas = ({
         let endCol = p.color(palette.colors[endColorIndex]);
         currentColor = p.lerpColor(startCol, endCol, colorTransition);
         p.stroke(currentColor);
-
-        // Get the appropriate scale factor to fit pattern in canvas
-        const scaleFactor = getScaleFactor();
 
         let x = 0;
         let y = 0;
@@ -451,9 +395,17 @@ const SpiroCanvas = ({
         x *= scaleFactor;
         y *= scaleFactor;
 
-        // Draw line segment
+        // Draw line segment on the main canvas
         if (prevX !== null) {
           p.line(prevX, prevY, x, y);
+          
+          // Also draw on the transparent canvas
+          transparentCanvas.push();
+          transparentCanvas.translate(transparentCanvas.width / 2, transparentCanvas.height / 2);
+          transparentCanvas.stroke(currentColor);
+          transparentCanvas.strokeWeight(1);
+          transparentCanvas.line(prevX, prevY, x, y);
+          transparentCanvas.pop();
         }
         
         // Store current position
@@ -519,8 +471,16 @@ const SpiroCanvas = ({
           nextX *= scaleFactor;
           nextY *= scaleFactor;
           
-          // Draw the line
+          // Draw the line on the main canvas
           p.line(prevX, prevY, nextX, nextY);
+          
+          // Also draw on the transparent canvas
+          transparentCanvas.push();
+          transparentCanvas.translate(transparentCanvas.width / 2, transparentCanvas.height / 2);
+          transparentCanvas.stroke(currentColor);
+          transparentCanvas.strokeWeight(1);
+          transparentCanvas.line(prevX, prevY, nextX, nextY);
+          transparentCanvas.pop();
           
           // Update previous position for next segment
           prevX = nextX;
@@ -551,11 +511,11 @@ const SpiroCanvas = ({
           p.noLoop(); // Stop drawing when complete
           setIsDrawing(false);
           
-          // Get the final image
-          const finalImage = captureRotatingAnimation();
+          // Store the final pattern with transparency
+          finalRenderedPattern = transparentCanvas;
           
           // Notify parent that drawing is complete
-          onDrawingComplete && onDrawingComplete(finalImage);
+          onDrawingComplete && onDrawingComplete(finalRenderedPattern);
         }
         
         p.pop();

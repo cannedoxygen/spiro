@@ -437,7 +437,6 @@ button:disabled {
 }
 
 .animation-preview {
-  background-color: black;
   border-radius: var(--border-radius-md);
   padding: 1rem;
   margin-bottom: 1.5rem;
@@ -445,13 +444,45 @@ button:disabled {
   display: flex;
   justify-content: center;
   align-items: center;
+  /* Checkered background for transparent images */
+  background-image: linear-gradient(45deg, #f0f0f0 25%, transparent 25%),
+                    linear-gradient(-45deg, #f0f0f0 25%, transparent 25%),
+                    linear-gradient(45deg, transparent 75%, #f0f0f0 75%),
+                    linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
 }
 
+/* Container for the rotating image */
+.img-container {
+  width: 80%;
+  max-width: 500px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Ensure the image fits in its container */
 .preview-gif {
   max-width: 100%;
   height: auto;
   max-height: 500px;
-  border-radius: var(--border-radius-sm);
+  background-color: transparent;
+  /* Remove any intrinsic margins/padding */
+  margin: 0;
+  padding: 0;
+  /* Make sure the rotation happens from center */
+  transform-origin: center center;
+}
+
+/* Apply rotation to the container instead of directly to the image */
+.rotating-image {
+  animation: rotate360 10s linear infinite;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* Make sure the rotation happens from center */
+  transform-origin: center center;
 }
 
 .preview-actions {
@@ -825,7 +856,18 @@ button:disabled {
 
 .nft-image.animated {
   object-fit: contain;
-  background-color: black;
+  background-color: transparent;
+  /* Checkered background for transparent images */
+  background-image: linear-gradient(45deg, #f0f0f0 25%, transparent 25%),
+                    linear-gradient(-45deg, #f0f0f0 25%, transparent 25%),
+                    linear-gradient(45deg, transparent 75%, #f0f0f0 75%),
+                    linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+  /* Center the image */
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .play-button {
@@ -1178,6 +1220,12 @@ section h2 {
   100% { transform: rotate(360deg); }
 }
 
+/* Animation for rotating spirograph */
+@keyframes rotate360 {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* Responsive Styles */
 @media (max-width: 768px) {
   .hero {
@@ -1278,18 +1326,4 @@ section h2 {
 .not-found {
   text-align: center;
   padding: var(--spacing-xxl) var(--spacing-lg);
-}
-
-/* New Animation Classes for Rotating Spirograph */
-.rotating-image {
-  animation: rotate360 8s linear infinite;
-}
-
-@keyframes rotate360 {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
 }
