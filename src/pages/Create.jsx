@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import SpiroCanvas from '../components/SpiroCanvas';
 import WalletConnect from '../components/WalletConnect';
+import SpirographCanvas from '../components/SpirographCanvas';
 import { 
   isSeedAvailable, 
   reserveSeed, 
@@ -16,16 +16,14 @@ const Create = () => {
   const [shape, setShape] = useState(null);
   const [palette, setPalette] = useState(null);
   const [image, setImage] = useState(null);
-  const [animatedGif, setAnimatedGif] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
-  const [strokeWeight] = useState(1); // Fixed to 1 per request
   
   // NFT and wallet state
   const [isMinting, setIsMinting] = useState(false);
   const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [hasToken, setHasToken] = useState(false);
   const [walletAddress, setWalletAddress] = useState(null);
-  const [mintStatus, setMintStatus] = useState(null); // 'success', 'error', or null
+  const [mintStatus, setMintStatus] = useState(null);
   const [mintedCount, setMintedCount] = useState(0);
   const [availabilityMessage, setAvailabilityMessage] = useState('');
   const [isSeedAvailableState, setIsSeedAvailableState] = useState(true);
@@ -38,12 +36,12 @@ const Create = () => {
         setMintedCount(count);
       } catch (error) {
         console.error("Error fetching minted count:", error);
-        // Fallback to 0 if there's an error
         setMintedCount(0);
       }
     };
 
     fetchMintedCount();
+    handleGenerateNew();
   }, []);
 
   // Check seed availability when it changes
@@ -61,7 +59,6 @@ const Create = () => {
           }
         } catch (error) {
           console.error("Error checking seed availability:", error);
-          // Assume seed is available if there's an error (for graceful degradation)
           setIsSeedAvailableState(true);
           setAvailabilityMessage('');
         }
@@ -90,15 +87,7 @@ const Create = () => {
 
   // Handle drawing completion
   const handleDrawingComplete = (finalImage) => {
-    // Store the final image
     setImage(finalImage);
-    
-    // Convert to data URL - explicitly use PNG format to preserve transparency
-    const imageUrl = finalImage && finalImage.canvas ? finalImage.canvas.toDataURL('image/png') : null;
-    
-    console.log("Image generated:", imageUrl ? "Success" : "Failed");
-    
-    setAnimatedGif(imageUrl);
     setShowPreview(true);
   };
 
@@ -106,7 +95,6 @@ const Create = () => {
   const handleGenerateNew = async () => {
     // Clear previous state
     setImage(null);
-    setAnimatedGif(null);
     setShowPreview(false);
     setMintStatus(null);
     setAvailabilityMessage('');
@@ -155,7 +143,6 @@ const Create = () => {
       }
     } catch (error) {
       console.error("Error checking seed availability:", error);
-      // Continue with mint if we can't check availability
     }
 
     try {
@@ -175,7 +162,7 @@ const Create = () => {
         shape: shape?.type,
         rarity: shape?.rarity,
         palette: palette?.name,
-        animated: true // This is now always an animated NFT
+        animated: true
       });
 
       // Simulate minting process
@@ -193,6 +180,8 @@ const Create = () => {
       }
       
       // Store in local storage for collection page
+      const imageUrl = image && image.canvas ? image.canvas.toDataURL('image/png') : null;
+      
       await saveUserNFT({
         id: seed,
         params: {
@@ -202,10 +191,10 @@ const Create = () => {
           movingRadius: shape?.params?.r1,
           offset: shape?.params?.d,
           colors: palette?.colors,
-          strokeWeight: strokeWeight
+          strokeWeight: 1
         },
-        imageUrl: animatedGif, // Store the transparent PNG
-        animatedGifUrl: animatedGif, // Same image, will be displayed with CSS rotation
+        imageUrl: imageUrl,
+        animatedGifUrl: imageUrl,
         mintDate: new Date().toISOString()
       });
       
@@ -220,10 +209,10 @@ const Create = () => {
 
   // Download the current image
   const handleDownloadImage = () => {
-    if (animatedGif) {
+    if (image && image.canvas) {
       const link = document.createElement('a');
-      link.href = animatedGif;
-      link.download = `Spirograph_${seed}.png`;
+      link.href = image.canvas.toDataURL('image/png');
+      link.download = `Spyro_${seed}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -233,7 +222,7 @@ const Create = () => {
   return (
     <div className="create-page">
       <div className="create-header">
-        <h1>Create Your Spirograph NFT</h1>
+        <h1>Create Your Spyro NFT</h1>
         <p>Design your unique mathematical pattern and mint it as an animated NFT</p>
         <div className="nft-availability">
           <span className="minted-count">{mintedCount}/10,000 Minted</span>
@@ -242,50 +231,95 @@ const Create = () => {
       </div>
 
       <div className="create-container">
-        <div className="canvas-section">
-          {!showPreview ? (
-            <SpiroCanvas
-              seed={seed}
-              setSeed={setSeed}
-              onShapeChange={handleShapeChange}
-              onPaletteChange={handlePaletteChange}
-              onDrawingComplete={handleDrawingComplete}
-            />
-          ) : (
-            <div className="preview-container">
-              <h3>Your Animated Spirograph</h3>
-              <div className="animation-preview">
-                <div className="rotating-image">
-                  <img 
-                    src={animatedGif} 
-                    alt="Animated Spirograph"
-                    className="preview-gif"
-                  />
+        <div className="canvas-side">
+          {/* Spirograph Information */}
+          <div className="spiro-info">
+            {seed && (
+              <div className="spiro-title">
+                <h2>Spyro #{seed}</h2>
+                {shape && palette && (
+                  <div className="spiro-properties">
+                    <span className="shape-badge">
+                      <span className="prop-icon">🌟</span> {shape.type} · {shape.rarity}
+                    </span>
+                    <span className="palette-badge">
+                      <span className="prop-icon">🎨</span> {palette.name} · {palette.rarity}
+                    </span>
+                  </div>
+                )}
+                {availabilityMessage && (
+                  <p className="availability-message">{availabilityMessage}</p>
+                )}
+              </div>
+            )}
+          </div>
+        
+          {/* Canvas or Preview */}
+          <div className="canvas-container">
+            {!showPreview ? (
+              <SpirographCanvas
+                seed={seed}
+                setSeed={setSeed}
+                onShapeChange={handleShapeChange}
+                onPaletteChange={handlePaletteChange}
+                onDrawingComplete={handleDrawingComplete}
+              />
+            ) : (
+              <div className="preview-container">
+                <div className="animation-preview">
+                  <div className="rotating-image">
+                    {image && image.canvas && (
+                      <img 
+                        src={image.canvas.toDataURL('image/png')} 
+                        alt="Animated Spirograph"
+                        className="preview-gif"
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="preview-actions">
-                <button onClick={handleDownloadImage} className="btn-secondary">Download Image</button>
+            )}
+          </div>
+          
+          {/* Action Buttons */}
+          <div className="canvas-actions">
+            <button 
+              className="action-button generate-button"
+              onClick={handleGenerateNew}
+              disabled={isMinting}
+            >
+              Generate New Design
+            </button>
+            
+            {showPreview && (
+              <>
+                <button 
+                  onClick={handleDownloadImage} 
+                  className="action-button download-button"
+                >
+                  Download Image
+                </button>
+                
                 <button 
                   onClick={handleMint}
-                  className="btn-primary"
+                  className="action-button mint-button"
                   disabled={isMinting || !isSeedAvailableState}
                 >
                   {isMinting ? 'Minting...' : 'Mint as NFT'}
                 </button>
-              </div>
-            </div>
-          )}
+              </>
+            )}
+          </div>
           
+          {/* Success/Error Messages */}
           {mintStatus === 'success' && (
             <div className="mint-success">
               <h3>Success! 🎉</h3>
-              <p>Your Spirograph NFT has been minted and sent to your wallet.</p>
-              <p>Share your creation with friends!</p>
+              <p>Your Spyro NFT has been minted and sent to your wallet.</p>
               <div className="share-buttons">
                 <button className="share-twitter">Share on X</button>
                 <button className="share-copy">Copy Link</button>
               </div>
-              <button onClick={handleGenerateNew} className="btn-primary mt-3">Create Another</button>
             </div>
           )}
           
@@ -293,41 +327,13 @@ const Create = () => {
             <div className="mint-error">
               <h3>Error Minting</h3>
               <p>There was a problem creating your NFT. Please try again.</p>
-              <button onClick={() => setMintStatus(null)} className="btn-secondary mt-2">Try Again</button>
+              <button onClick={() => setMintStatus(null)} className="try-again-button">Try Again</button>
             </div>
           )}
         </div>
         
-        <div className="controls-section">
-          <div className="spirograph-info">
-            {seed && (
-              <>
-                <h3>Your Spirograph</h3>
-                <p><strong>Seed:</strong> #{seed}</p>
-                {shape && (
-                  <p><strong>Shape:</strong> {shape.type} ({shape.rarity})</p>
-                )}
-                {palette && (
-                  <p><strong>Palette:</strong> {palette.name} ({palette.rarity})</p>
-                )}
-                
-                {availabilityMessage && (
-                  <p className="availability-message">{availabilityMessage}</p>
-                )}
-              </>
-            )}
-          </div>
-          
-          <div className="action-buttons">
-            <button 
-              className="btn-primary" 
-              onClick={handleGenerateNew}
-              disabled={isMinting}
-            >
-              Generate New Design
-            </button>
-          </div>
-          
+        <div className="info-side">
+          {/* Token Gate Info */}
           <div className="token-gate-info">
             <h3>Token Gate</h3>
             <p>This is a token-gated experience. You need to own our special token to mint NFTs for free.</p>
@@ -337,12 +343,57 @@ const Create = () => {
             {isWalletConnected && !hasToken && (
               <div>
                 <p>You don't have the required token yet.</p>
-                <button className="get-token-button">Get Token</button>
+                <a href="https://opensea.io/collection/spyro-access-token" 
+                   target="_blank" 
+                   rel="noopener noreferrer"
+                   className="get-token-button">
+                  Get Token
+                </a>
               </div>
             )}
             {isWalletConnected && hasToken && (
               <p className="token-success">You have the token! Mint as many NFTs as you want.</p>
             )}
+          </div>
+          
+          {/* Rarity Info */}
+          <div className="rarity-info">
+            <h3>Rarity Information</h3>
+            <div className="rarity-table">
+              <div className="rarity-row">
+                <span className="rarity-type common">Common</span>
+                <span className="rarity-percent">40%</span>
+              </div>
+              <div className="rarity-row">
+                <span className="rarity-type uncommon">Uncommon</span>
+                <span className="rarity-percent">30%</span>
+              </div>
+              <div className="rarity-row">
+                <span className="rarity-type rare">Rare</span>
+                <span className="rarity-percent">20%</span>
+              </div>
+              <div className="rarity-row">
+                <span className="rarity-type super-rare">Super Rare</span>
+                <span className="rarity-percent">8%</span>
+              </div>
+              <div className="rarity-row">
+                <span className="rarity-type legendary">Legendary</span>
+                <span className="rarity-percent">2%</span>
+              </div>
+            </div>
+            <p className="rarity-tip">The rarer your Spyro, the higher the token rewards after 90 days!</p>
+          </div>
+          
+          {/* Shapes & Features */}
+          <div className="features-info">
+            <h3>Shape Types</h3>
+            <ul className="features-list">
+              <li><strong>Rhodonea:</strong> Rose-like curves with symmetric petals</li>
+              <li><strong>Epitrochoid:</strong> Curves traced by a point on a circle rolling around the outside of another circle</li>
+              <li><strong>Hypotrochoid:</strong> Curves traced by a point on a circle rolling inside another circle</li>
+              <li><strong>OrganicFlow:</strong> Dynamic patterns with natural, flowing variations</li>
+              <li><strong>Lissajous:</strong> Complex patterns created by two perpendicular oscillations</li>
+            </ul>
           </div>
         </div>
       </div>

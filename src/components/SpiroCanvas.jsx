@@ -1,6 +1,4 @@
-// Improvement for src/components/SpiroCanvas.jsx
-// This version creates distinct layers and preserves the black background
-
+// src/components/SpiroCanvas.jsx
 import React, { useRef, useEffect, useState } from 'react';
 import p5 from 'p5';
 import '../styles/components.css';
@@ -39,7 +37,7 @@ const SpiroCanvas = ({
         "Lissajous": "Legendary" // 2%
       };
 
-      // Multiple layer canvases - NEW!
+      // Multiple layer canvases
       let mainCanvas; // Main visible canvas with black background
       let layerCanvases = []; // Array of layer graphics for each color
       let finalOutput; // Final combined output
@@ -63,10 +61,23 @@ const SpiroCanvas = ({
       let currentLayer = 0;
       let layerCompletionPoints = []; // Points at which to switch layers
       
+      // Track the starting point to detect when we return to it
+      let startX = null;
+      let startY = null;
+      let hasCompleted = false;
+      let minCycleDistance = 2; // Minimum distance to consider a cycle complete
+      let minCycles = 1; // Minimum number of cycles to complete before checking for completion
+      let cycleCount = 0;
+      
+      // Helper function to calculate the least common multiple
+      const lcm = (a, b) => {
+        return (a * b) / findGCD(a, b);
+      };
+      
       // Helper function to find greatest common divisor
       const findGCD = (a, b) => {
-        a = Math.round(a);
-        b = Math.round(b);
+        a = Math.abs(Math.round(a));
+        b = Math.abs(Math.round(b));
         return b === 0 ? a : findGCD(b, a % b);
       };
 
@@ -167,6 +178,64 @@ const SpiroCanvas = ({
         return transparentSpiro;
       };
       
+      // Calculate the exact cycle length based on mathematical properties
+      const calculateExactCycleLength = () => {
+        let cycleLength;
+        
+        switch(shapeType) {
+          case "Hypotrochoid":
+            // For a hypotrochoid to return to its starting point, we need LCM of R and r1
+            // Simplified as: (R-r1) / GCD(R, r1)
+            // Convert to integers to ensure proper calculation
+            const gcdH = findGCD(params.R, params.r1);
+            cycleLength = p.TWO_PI * (params.r1 / gcdH);
+            break;
+            
+          case "Epitrochoid":
+            // For an epitrochoid to return to its starting point
+            // Simplified as: (R+r1) / GCD(R, r1)
+            const gcdE = findGCD(params.R, params.r1);
+            cycleLength = p.TWO_PI * (params.r1 / gcdE);
+            break;
+            
+          case "Rhodonea":
+            // For a rose curve (Rhodonea), if k is rational p/q:
+            // - If p,q are both odd: period is π*q
+            // - If either p or q is even: period is 2π*q
+            // Here we simplified with integer k
+            cycleLength = params.k % 2 === 0 ? p.TWO_PI : p.PI;
+            break;
+            
+          case "Lissajous":
+            // For a Lissajous curve to repeat, need LCM of periods
+            // Period is 2π/a for x and 2π/b for y
+            const lcmVal = lcm(params.a, params.b);
+            cycleLength = p.TWO_PI * (lcmVal / params.a);
+            break;
+            
+          case "OrganicFlow":
+            // Organic flow can be less predictable, use a larger value
+            cycleLength = p.TWO_PI * 20;
+            break;
+            
+          default:
+            cycleLength = p.TWO_PI * 10;
+        }
+        
+        // Add some buffer to ensure we complete at least one full cycle
+        // Some patterns may need multiple cycles to truly come back to the start
+        return Math.max(cycleLength, p.TWO_PI * 5);
+      };
+      
+      // Check if the current point is close enough to the starting point
+      const isBackToStart = (x, y) => {
+        if (startX === null || startY === null) return false;
+        if (cycleCount < minCycles) return false;
+        
+        const dist = p.sqrt((x - startX) * (x - startX) + (y - startY) * (y - startY));
+        return dist < minCycleDistance;
+      };
+      
       // Select shape type based on seed and rarity
       const selectShapeType = () => {
         // Use probability distribution based on rarity levels
@@ -188,63 +257,48 @@ const SpiroCanvas = ({
         params = {}; // Reset params
         
         switch(shapeIndex) {
-          case 0: // Rhodonea (now Common)
+          case 0: // Rhodonea (Common)
             shapeType = "Rhodonea";
             params.k = p.int(p.random(4, 9));
-            
-            maxT = (params.k % 2 === 0) ? p.TWO_PI : p.PI;
             break;
             
-          case 1: // Epitrochoid (remains Uncommon)
+          case 1: // Epitrochoid (Uncommon)
             shapeType = "Epitrochoid";
             params.R = p.random(200, 300);
             params.r1 = p.random(20, 60);
             params.d = p.random(80, 160);
-            
-            const gcd2 = findGCD(params.R, params.r1);
-            maxT = p.TWO_PI * (params.r1 / gcd2);
             break;
             
-          case 2: // Hypotrochoid (now Rare)
+          case 2: // Hypotrochoid (Rare)
             shapeType = "Hypotrochoid";
             params.R = p.random(250, 400);
             params.r1 = p.random(20, 60);
             params.d = p.random(100, 180);
-            
-            const gcd = findGCD(params.R, params.r1);
-            maxT = p.TWO_PI * (params.r1 / gcd);
             break;
             
-          case 3: // OrganicFlow (now Super Rare)
+          case 3: // OrganicFlow (Super Rare)
             shapeType = "OrganicFlow";
             params.complexity = p.random(0.5, 2.5);
             params.speed = p.random(0.01, 0.05);
             params.waves = p.int(p.random(3, 7));
             params.amplitude = p.random(100, 250);
             params.noiseScale = p.random(0.005, 0.02);
-            
-            // These need longer time to develop
-            maxT = p.TWO_PI * 20;
             break;
             
-          case 4: // Lissajous (now Legendary)
+          case 4: // Lissajous (Legendary)
             shapeType = "Lissajous";
             params.A = p.random(200, 350);
             params.B = p.random(200, 350);
             params.a = p.int(p.random(3, 7));
             params.b = p.int(p.random(3, 7));
             params.delta = p.random(0, p.PI);
-            
-            // Find cycle length
-            const lcm = (params.a * params.b) / findGCD(params.a, params.b);
-            maxT = p.TWO_PI * lcm;
             break;
         }
         
-        // Ensure we have enough time for a complete pattern
-        maxT = p.max(maxT, p.TWO_PI * 10);
+        // Calculate the exact cycle length based on the shape parameters
+        maxT = calculateExactCycleLength();
         
-        // NEW: Set up layer transitions - divide maxT into segments for each layer
+        // Set up layer transitions - divide maxT into segments for each layer
         layerCompletionPoints = [];
         for (let i = 1; i < totalLayers; i++) {
           layerCompletionPoints.push((i / totalLayers) * maxT);
@@ -300,6 +354,10 @@ const SpiroCanvas = ({
         t = 0;
         prevX = null;
         prevY = null;
+        startX = null;
+        startY = null;
+        hasCompleted = false;
+        cycleCount = 0;
         globalAngle = 0;
         currentColorIndex = 0;
         currentLayer = 0;
@@ -317,6 +375,7 @@ const SpiroCanvas = ({
         console.log(`Spirograph #${currentSeed} — ${shapeType} (${rarityText})`);
         console.log("Params:", params);
         console.log("Palette:", palette.name);
+        console.log("Expected cycle length:", maxT);
         
         // Start drawing loop if it was stopped
         if (!p.isLooping()) {
@@ -452,6 +511,13 @@ const SpiroCanvas = ({
         x *= scaleFactor;
         y *= scaleFactor;
 
+        // Record the starting point for the first segment
+        if (startX === null && startY === null) {
+          startX = x;
+          startY = y;
+          console.log("Starting point:", startX, startY);
+        }
+
         // Draw line segment on both canvases
         if (prevX !== null) {
           mainCanvas.line(prevX, prevY, x, y);
@@ -542,6 +608,13 @@ const SpiroCanvas = ({
           // Update previous position for next segment
           prevX = nextX;
           prevY = nextY;
+          
+          // Check if we've completed a cycle - back to the starting point
+          if (t > p.TWO_PI * 2 && isBackToStart(nextX, nextY)) {
+            hasCompleted = true;
+            console.log("Completed at t =", t, "after", cycleCount, "cycles");
+            break;
+          }
         }
         
         // Increment time
@@ -551,9 +624,20 @@ const SpiroCanvas = ({
         globalAngle = (t / maxT) * p.TWO_PI;
         
         // Update progress
-        const currentProgress = Math.min(100, Math.round((t / maxT) * 100));
+        // If we've detected completion, set progress to 100%
+        // Otherwise base it on the percentage of maxT
+        const currentProgress = hasCompleted ? 
+          100 : 
+          Math.min(100, Math.round((t / maxT) * 100));
+          
         if (currentProgress !== progress) {
           setProgress(currentProgress);
+        }
+        
+        // Check if we've passed a multiple of 2π to track cycles
+        if (t >= p.TWO_PI * (cycleCount + 1)) {
+          cycleCount++;
+          console.log("Completed cycle:", cycleCount);
         }
         
         // End current push transforms
@@ -561,7 +645,8 @@ const SpiroCanvas = ({
         currentLayerCanvas.pop();
 
         // Check if drawing is complete
-        if (t > maxT) {
+        // Complete if we've detected a full cycle back to start or if we've exceeded maxT
+        if (hasCompleted || t > maxT) {
           p.noLoop(); // Stop drawing when complete
           setIsDrawing(false);
           
@@ -612,7 +697,20 @@ const SpiroCanvas = ({
 
   return (
     <div className="spiro-canvas-container">
+      {/* Title card is now outside the sketch box */}
+      <div className="spiro-title-card">
+        {seed && (
+          <>
+            <h3>Spyro #{seed}</h3>
+            <p className="spiro-details">
+              Creating a unique mathematical pattern...
+            </p>
+          </>
+        )}
+      </div>
+      
       <div ref={canvasRef} className="canvas-wrapper"></div>
+      
       {isDrawing && (
         <div className="progress-bar-container">
           <div className="progress-bar" style={{ width: `${progress}%` }}></div>

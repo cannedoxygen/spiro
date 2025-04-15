@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import WalletConnect from '../components/WalletConnect';
 import NFTCard from '../components/NFTCard';
 import '../styles/components.css';
@@ -9,6 +10,8 @@ const Collection = () => {
   const [walletAddress, setWalletAddress] = useState(null);
   const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [sendStatus, setSendStatus] = useState(null);
+  const [mintedCount, setMintedCount] = useState(0);
+  const [collectionValue, setCollectionValue] = useState(0);
 
   // Handle wallet connection
   const handleWalletConnect = (address, tokenOwnership) => {
@@ -35,6 +38,10 @@ const Collection = () => {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       setUserNFTs(storedNFTs);
+      setMintedCount(storedNFTs.length);
+      
+      // Calculate collection value (10,000 SPIRO tokens per NFT)
+      setCollectionValue(storedNFTs.length * 10000);
     } catch (error) {
       console.error('Error fetching NFTs:', error);
     } finally {
@@ -54,6 +61,8 @@ const Collection = () => {
       const updatedNFTs = userNFTs.filter(nft => nft.id !== nftId);
       localStorage.setItem('userNFTs', JSON.stringify(updatedNFTs));
       setUserNFTs(updatedNFTs);
+      setMintedCount(updatedNFTs.length);
+      setCollectionValue(updatedNFTs.length * 10000);
       
       setSendStatus({ 
         status: 'success', 
@@ -85,9 +94,31 @@ const Collection = () => {
   return (
     <div className="collection-page">
       <div className="collection-header">
-        <h1>Your Spirograph NFT Collection</h1>
-        <p>View, share and send your mathematical masterpieces</p>
-        <WalletConnect onConnect={handleWalletConnect} />
+        <h1>Your Spirograph Collection</h1>
+        <p>View, share and manage your mathematical masterpieces</p>
+      </div>
+      
+      <div className="collection-stats-bar">
+        <div className="wallet-section">
+          <WalletConnect onConnect={handleWalletConnect} />
+        </div>
+        
+        {isWalletConnected && (
+          <div className="stats-section">
+            <div className="stat-item">
+              <span className="stat-label">Collection Size</span>
+              <span className="stat-value">{mintedCount} NFTs</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">SPIRO Value</span>
+              <span className="stat-value">{collectionValue.toLocaleString()} SPIRO</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">Mint Limit</span>
+              <span className="stat-value">{mintedCount}/2</span>
+            </div>
+          </div>
+        )}
       </div>
       
       {sendStatus && (
@@ -99,48 +130,86 @@ const Collection = () => {
       <div className="collection-content">
         {!isWalletConnected ? (
           <div className="connect-prompt">
-            <h2>Connect your wallet to view your collection</h2>
-            <p>Your Spirograph NFTs will appear here once you connect your wallet.</p>
+            <div className="connect-prompt-image">
+              <div className="preview-image-container">
+                <img src="/images/placeholder_spirograph.png" alt="Spirograph placeholder" className="preview-image" />
+              </div>
+            </div>
+            <h2>Connect Your Wallet</h2>
+            <p>Connect your wallet to view your Spirograph NFT collection</p>
+            <p className="secondary-text">Your creations will appear here once you connect</p>
           </div>
         ) : isLoading ? (
           <div className="loading-indicator">
             <div className="spinner"></div>
-            <p>Loading your NFT collection...</p>
+            <p>Loading your collection...</p>
           </div>
         ) : userNFTs.length === 0 ? (
           <div className="empty-collection">
-            <h2>No NFTs found</h2>
-            <p>You don't have any Spirograph NFTs in your collection yet.</p>
-            <a href="/create" className="create-link">Create your first Spirograph NFT</a>
+            <div className="empty-collection-image">
+              <div className="preview-image-container">
+                <img src="/images/empty_collection.png" alt="Empty collection" className="preview-image" />
+              </div>
+            </div>
+            <h2>No Spirographs Found</h2>
+            <p>You don't have any Spirograph NFTs in your collection yet</p>
+            <Link to="/create" className="create-link">Create Your First Spirograph</Link>
           </div>
         ) : (
-          <div className="nft-grid">
-            {userNFTs.map(nft => (
-              <NFTCard
-                key={nft.id}
-                id={nft.id}
-                image={`/api/placeholder/300/300?text=Spirograph%20%23${nft.id}`} // Placeholder
-                animationFrames={nft.animationFrames}
-                parameters={nft.params}
-                mintDate={nft.mintDate}
-                onShare={handleShareNFT}
-                onSend={handleSendNFT}
-              />
-            ))}
-          </div>
+          <>
+            <div className="collection-actions">
+              <Link to="/create" className="btn-primary">Create New Spirograph</Link>
+              <button className="btn-secondary">Sort By Rarity</button>
+            </div>
+            
+            <div className="nft-grid">
+              {userNFTs.map(nft => (
+                <NFTCard
+                  key={nft.id}
+                  id={nft.id}
+                  image={nft.imageUrl || `/api/placeholder/300/300?text=Spirograph%20%23${nft.id}`}
+                  animationFrames={nft.animationFrames}
+                  parameters={nft.params}
+                  mintDate={nft.mintDate}
+                  onShare={handleShareNFT}
+                  onSend={handleSendNFT}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
       
-      <div className="collection-info">
-        <h2>About Your NFTs</h2>
-        <p>Each Spirograph NFT contains:</p>
-        <ul>
-          <li><strong>Unique Parameters</strong> - Mathematical values that define your pattern</li>
-          <li><strong>Animation Sequence</strong> - Watch your pattern draw itself</li>
-          <li><strong>On-Chain Storage</strong> - Your NFT is securely stored on the blockchain</li>
-        </ul>
-        <p>You can share your NFTs on social media or send them directly to friends' wallets.</p>
-      </div>
+      {isWalletConnected && userNFTs.length > 0 && (
+        <div className="reward-reminder-panel">
+          <div className="reward-reminder-content">
+            <h3>SPIRO Token Rewards Coming Soon!</h3>
+            <p>After 90 days from launch, you'll receive SPIRO tokens based on your NFT rarity</p>
+            <div className="reward-multipliers">
+              <div className="multiplier-item">
+                <span className="rarity common">Common</span>
+                <span>1×</span>
+              </div>
+              <div className="multiplier-item">
+                <span className="rarity uncommon">Uncommon</span>
+                <span>1.5×</span>
+              </div>
+              <div className="multiplier-item">
+                <span className="rarity rare">Rare</span>
+                <span>2×</span>
+              </div>
+              <div className="multiplier-item">
+                <span className="rarity super-rare">Super Rare</span>
+                <span>3×</span>
+              </div>
+              <div className="multiplier-item">
+                <span className="rarity legendary">Legendary</span>
+                <span>5×</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

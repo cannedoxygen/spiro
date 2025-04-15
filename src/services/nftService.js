@@ -4,6 +4,9 @@ import { ethers } from 'ethers';
 // Replace with your actual NFT contract address on Base network
 const NFT_CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000000"; // REPLACE WITH REAL ADDRESS
 
+// Replace with your actual SPIRO token contract address
+const TOKEN_CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000000"; // REPLACE WITH REAL ADDRESS
+
 // Simplified ABI for NFT contract
 const NFT_ABI = [
   // Function to check if a token ID exists
@@ -22,6 +25,18 @@ const NFT_ABI = [
   "function tokenURI(uint256 tokenId) view returns (string)"
 ];
 
+// Simplified ABI for ERC-20 token contract
+const TOKEN_ABI = [
+  // Function to check token balance
+  "function balanceOf(address owner) view returns (uint256)",
+  
+  // Function to approve tokens
+  "function approve(address spender, uint256 amount) returns (bool)",
+  
+  // Function to transfer tokens
+  "function transfer(address recipient, uint256 amount) returns (bool)"
+];
+
 // Get the provider
 const getProvider = () => {
   if (window.ethereum) {
@@ -38,6 +53,65 @@ const getSigner = async () => {
   }
   const provider = new ethers.providers.Web3Provider(window.ethereum);
   return provider.getSigner();
+};
+
+// Check token balance
+export const getTokenBalance = async (walletAddress) => {
+  try {
+    if (!walletAddress) return "0";
+    
+    const provider = getProvider();
+    const tokenContract = new ethers.Contract(
+      TOKEN_CONTRACT_ADDRESS,
+      TOKEN_ABI,
+      provider
+    );
+    
+    const balance = await tokenContract.balanceOf(walletAddress);
+    return balance.toString();
+  } catch (error) {
+    console.error('Error getting token balance:', error);
+    return "0";
+  }
+};
+
+// Approve tokens for spending
+export const approveTokens = async (spenderAddress, amount) => {
+  try {
+    const signer = await getSigner();
+    const tokenContract = new ethers.Contract(
+      TOKEN_CONTRACT_ADDRESS,
+      TOKEN_ABI,
+      signer
+    );
+    
+    const tx = await tokenContract.approve(spenderAddress, amount);
+    await tx.wait();
+    return { success: true, transaction: tx.hash };
+  } catch (error) {
+    console.error('Error approving tokens:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Burn tokens (transfer to dead address)
+export const burnTokens = async (amount) => {
+  try {
+    const signer = await getSigner();
+    const tokenContract = new ethers.Contract(
+      TOKEN_CONTRACT_ADDRESS,
+      TOKEN_ABI,
+      signer
+    );
+    
+    const burnAddress = "0x000000000000000000000000000000000000dEaD";
+    const tx = await tokenContract.transfer(burnAddress, amount);
+    await tx.wait();
+    return { success: true, transaction: tx.hash };
+  } catch (error) {
+    console.error('Error burning tokens:', error);
+    return { success: false, error: error.message };
+  }
 };
 
 // Check if a token ID is already minted
