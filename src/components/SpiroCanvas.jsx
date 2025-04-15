@@ -1,3 +1,6 @@
+// Improvement for src/components/SpiroCanvas.jsx
+// This version creates distinct layers and preserves the black background
+
 import React, { useRef, useEffect, useState } from 'react';
 import p5 from 'p5';
 import '../styles/components.css';
@@ -36,10 +39,10 @@ const SpiroCanvas = ({
         "Lissajous": "Legendary" // 2%
       };
 
-      // Create a separate graphics buffer with transparency
-      let transparentCanvas;
-      // Keep a copy of the rendered pattern
-      let finalRenderedPattern;
+      // Multiple layer canvases - NEW!
+      let mainCanvas; // Main visible canvas with black background
+      let layerCanvases = []; // Array of layer graphics for each color
+      let finalOutput; // Final combined output
 
       // Variables for drawing
       let shapeType = "";
@@ -51,11 +54,14 @@ const SpiroCanvas = ({
       let prevX = null;
       let prevY = null;
       let globalAngle = 0;
-      let startColorIndex = 0;
-      let endColorIndex = 1;
-      let colorTransition = 0;
+      let currentColorIndex = 0;
       let rarityText = "";
       let currentSeed = seed || Math.floor(p.random(1, 10001));
+      
+      // Layer tracking
+      let totalLayers = 5; // Match number of colors in palette
+      let currentLayer = 0;
+      let layerCompletionPoints = []; // Points at which to switch layers
       
       // Helper function to find greatest common divisor
       const findGCD = (a, b) => {
@@ -142,9 +148,23 @@ const SpiroCanvas = ({
       };
 
       // Get the final image when completed
-      const captureRotatingAnimation = () => {
-        // We'll just return the complete rendered pattern on the transparent canvas
-        return finalRenderedPattern;
+      const generateFinalOutput = () => {
+        // Create two separate graphics:
+        // 1. The background canvas (black)
+        let backgroundCanvas = p.createGraphics(600, 600);
+        backgroundCanvas.background(0); // BLACK BACKGROUND
+        
+        // 2. The transparent spirograph with all layers merged (but no background)
+        let transparentSpiro = p.createGraphics(600, 600);
+        transparentSpiro.clear(); // Completely transparent
+        
+        // Overlay all layers onto the transparent spirograph
+        for (let i = 0; i < layerCanvases.length; i++) {
+          transparentSpiro.image(layerCanvases[i], 0, 0);
+        }
+        
+        // Return just the transparent spirograph - the black background stays in the canvas
+        return transparentSpiro;
       };
       
       // Select shape type based on seed and rarity
@@ -224,6 +244,13 @@ const SpiroCanvas = ({
         // Ensure we have enough time for a complete pattern
         maxT = p.max(maxT, p.TWO_PI * 10);
         
+        // NEW: Set up layer transitions - divide maxT into segments for each layer
+        layerCompletionPoints = [];
+        for (let i = 1; i < totalLayers; i++) {
+          layerCompletionPoints.push((i / totalLayers) * maxT);
+        }
+        layerCompletionPoints.push(maxT); // Final completion point
+        
         rarityText = shapeRarity[shapeType];
         
         // Update parent component
@@ -236,9 +263,17 @@ const SpiroCanvas = ({
 
       // Reset sketch with new parameters
       const resetSketch = () => {
-        // Clear both the main canvas and the transparent canvas
+        // Clear all canvases
         p.background(0);
-        transparentCanvas.clear();
+        mainCanvas.background(0);
+        
+        // Reset layer canvases
+        layerCanvases = [];
+        for (let i = 0; i < totalLayers; i++) {
+          let layerCanvas = p.createGraphics(600, 600);
+          layerCanvas.clear(); // Start with transparent background for each layer
+          layerCanvases.push(layerCanvas);
+        }
         
         p.randomSeed(currentSeed);
         
@@ -256,6 +291,8 @@ const SpiroCanvas = ({
           palette = palettes[4]; // Legendary - 2%
         }
         
+        totalLayers = palette.colors.length; // Match layers to palette colors
+        
         p.strokeWeight(1); // Set to 1 as requested
         p.noFill();
         
@@ -264,9 +301,8 @@ const SpiroCanvas = ({
         prevX = null;
         prevY = null;
         globalAngle = 0;
-        startColorIndex = 0;
-        endColorIndex = 1;
-        colorTransition = 0;
+        currentColorIndex = 0;
+        currentLayer = 0;
         
         // Pick a shape type
         selectShapeType();
@@ -293,20 +329,32 @@ const SpiroCanvas = ({
 
       // p5.js setup function
       p.setup = function() {
-        // Create main canvas
+        // Create main canvas with black background
         const canvas = p.createCanvas(600, 600);
         canvas.style('display', 'block');
         canvas.style('margin', '0 auto');
+        canvas.style('background-color', 'black'); // Ensure canvas always shows black
         
-        // Create a transparent graphics buffer for the finished product
-        transparentCanvas = p.createGraphics(600, 600);
-        transparentCanvas.clear(); // Start with transparent background
+        // Initialize main drawing canvas with black background
+        mainCanvas = p.createGraphics(600, 600);
+        mainCanvas.background(0);
+        
+        // Initialize layer canvases - one for each color
+        for (let i = 0; i < totalLayers; i++) {
+          let layerCanvas = p.createGraphics(600, 600);
+          layerCanvas.clear(); // Start with transparent background
+          layerCanvases.push(layerCanvas);
+        }
         
         p.frameRate(60);
         p.strokeJoin(p.ROUND);
         p.strokeCap(p.ROUND);
-        transparentCanvas.strokeJoin(p.ROUND);
-        transparentCanvas.strokeCap(p.ROUND);
+        
+        // Apply same settings to all layer canvases
+        for (let canvas of layerCanvases) {
+          canvas.strokeJoin(p.ROUND);
+          canvas.strokeCap(p.ROUND);
+        }
         
         // Initialize with the provided seed or generate a random one
         currentSeed = seed || Math.floor(p.random(1, 10001));
@@ -325,22 +373,32 @@ const SpiroCanvas = ({
           p.background(0);
         }
         
+        // Display in-progress work
+        p.image(mainCanvas, 0, 0);
+        
         // Get the appropriate scale factor to fit pattern in canvas
         const scaleFactor = getScaleFactor();
         
-        // Draw on the main canvas - black background visible during creation
-        p.push();
-        p.translate(p.width / 2, p.height / 2);
+        // Draw on the main canvas
+        mainCanvas.push();
+        mainCanvas.translate(mainCanvas.width / 2, mainCanvas.height / 2);
         
-        // Add rotation
+        // Add rotation that completes during drawing
         let fullRotationAngle = (t / maxT) * p.TWO_PI;
-        p.rotate(fullRotationAngle);
+        mainCanvas.rotate(fullRotationAngle);
         
-        // Gradient between colors
-        let startCol = p.color(palette.colors[startColorIndex]);
-        let endCol = p.color(palette.colors[endColorIndex]);
-        currentColor = p.lerpColor(startCol, endCol, colorTransition);
-        p.stroke(currentColor);
+        // Current layer canvas (for separate color layers)
+        let currentLayerCanvas = layerCanvases[currentLayer];
+        currentLayerCanvas.push();
+        currentLayerCanvas.translate(currentLayerCanvas.width / 2, currentLayerCanvas.height / 2);
+        currentLayerCanvas.rotate(fullRotationAngle);
+        
+        // Set color for current layer
+        currentColor = palette.colors[currentLayer];
+        mainCanvas.stroke(currentColor);
+        currentLayerCanvas.stroke(currentColor);
+        mainCanvas.strokeWeight(1);
+        currentLayerCanvas.strokeWeight(1);
 
         let x = 0;
         let y = 0;
@@ -365,8 +423,7 @@ const SpiroCanvas = ({
             y = params.B * p.sin(params.b * t);
             break;
           case "OrganicFlow":
-            // Create organic, flowing amoeba-like patterns
-            // Using perlin noise for organic movement
+            // Create organic, flowing patterns
             let baseRadius = 150;
             let noiseTime = t * params.speed;
             
@@ -385,7 +442,7 @@ const SpiroCanvas = ({
             x = radius * p.cos(t);
             y = radius * p.sin(t);
             
-            // Add some variation to make it more organic
+            // Add some variation
             x += p.sin(t * 3.5) * 20 * p.noise(noiseTime * 2, 0);
             y += p.cos(t * 2.7) * 20 * p.noise(0, noiseTime * 2);
             break;
@@ -395,17 +452,10 @@ const SpiroCanvas = ({
         x *= scaleFactor;
         y *= scaleFactor;
 
-        // Draw line segment on the main canvas
+        // Draw line segment on both canvases
         if (prevX !== null) {
-          p.line(prevX, prevY, x, y);
-          
-          // Also draw on the transparent canvas
-          transparentCanvas.push();
-          transparentCanvas.translate(transparentCanvas.width / 2, transparentCanvas.height / 2);
-          transparentCanvas.stroke(currentColor);
-          transparentCanvas.strokeWeight(1);
-          transparentCanvas.line(prevX, prevY, x, y);
-          transparentCanvas.pop();
+          mainCanvas.line(prevX, prevY, x, y);
+          currentLayerCanvas.line(prevX, prevY, x, y);
         }
         
         // Store current position
@@ -417,6 +467,24 @@ const SpiroCanvas = ({
         for (let i = 1; i < stepsPerFrame; i++) {
           // Increment time with smaller steps
           t += 0.015;
+          
+          // Check if we've reached a layer transition point
+          if (currentLayer < layerCompletionPoints.length-1 && t >= layerCompletionPoints[currentLayer]) {
+            // Time to move to next layer
+            currentLayer++;
+            // Make sure we don't go beyond the array bounds
+            if (currentLayer < layerCanvases.length) {
+              currentLayerCanvas = layerCanvases[currentLayer];
+              currentLayerCanvas.push();
+              currentLayerCanvas.translate(currentLayerCanvas.width / 2, currentLayerCanvas.height / 2);
+              // Apply rotation to the new layer
+              let fullRotationAngle = (t / maxT) * p.TWO_PI;
+              currentLayerCanvas.rotate(fullRotationAngle);
+              currentColor = palette.colors[Math.min(currentLayer, palette.colors.length - 1)];
+              mainCanvas.stroke(currentColor);
+              currentLayerCanvas.stroke(currentColor);
+            }
+          }
           
           // Calculate new position for this sub-step
           let nextX = 0;
@@ -442,11 +510,9 @@ const SpiroCanvas = ({
               nextY = params.B * p.sin(params.b * t);
               break;
             case "OrganicFlow":
-              // Create organic, flowing amoeba-like patterns for this step
               let baseRadius = 150;
               let noiseTime = t * params.speed;
               
-              // Create multiple wave layers with perlin noise
               let radius = baseRadius;
               for (let i = 0; i < params.waves; i++) {
                 let noiseFactor = p.noise(
@@ -457,11 +523,9 @@ const SpiroCanvas = ({
                 radius += p.sin(t * (i+1) * params.complexity) * params.amplitude * noiseFactor;
               }
               
-              // Convert to x,y coordinates
               nextX = radius * p.cos(t);
               nextY = radius * p.sin(t);
               
-              // Add some variation to make it more organic
               nextX += p.sin(t * 3.5) * 20 * p.noise(noiseTime * 2, 0);
               nextY += p.cos(t * 2.7) * 20 * p.noise(0, noiseTime * 2);
               break;
@@ -471,16 +535,9 @@ const SpiroCanvas = ({
           nextX *= scaleFactor;
           nextY *= scaleFactor;
           
-          // Draw the line on the main canvas
-          p.line(prevX, prevY, nextX, nextY);
-          
-          // Also draw on the transparent canvas
-          transparentCanvas.push();
-          transparentCanvas.translate(transparentCanvas.width / 2, transparentCanvas.height / 2);
-          transparentCanvas.stroke(currentColor);
-          transparentCanvas.strokeWeight(1);
-          transparentCanvas.line(prevX, prevY, nextX, nextY);
-          transparentCanvas.pop();
+          // Draw the line on both canvases
+          mainCanvas.line(prevX, prevY, nextX, nextY);
+          currentLayerCanvas.line(prevX, prevY, nextX, nextY);
           
           // Update previous position for next segment
           prevX = nextX;
@@ -499,26 +556,33 @@ const SpiroCanvas = ({
           setProgress(currentProgress);
         }
         
-        // Gradually transition color
-        colorTransition += 0.003;
-        if (colorTransition >= 1) {
-          startColorIndex = endColorIndex;
-          endColorIndex = (endColorIndex + 1) % palette.colors.length;
-          colorTransition = 0;
-        }
+        // End current push transforms
+        mainCanvas.pop();
+        currentLayerCanvas.pop();
 
+        // Check if drawing is complete
         if (t > maxT) {
           p.noLoop(); // Stop drawing when complete
           setIsDrawing(false);
           
-          // Store the final pattern with transparency
-          finalRenderedPattern = transparentCanvas;
+          // Make sure to end all open transforms
+          mainCanvas.pop();
+          // Safely pop any open layer transforms
+          for (let i = 0; i < layerCanvases.length; i++) {
+            try {
+              layerCanvases[i].pop();
+            } catch (e) {
+              // Ignore errors if there's no matching push
+              console.log("Note: Layer", i, "didn't need popping");
+            }
+          }
+          
+          // Generate final output with black background and all layers
+          finalOutput = generateFinalOutput();
           
           // Notify parent that drawing is complete
-          onDrawingComplete && onDrawingComplete(finalRenderedPattern);
+          onDrawingComplete && onDrawingComplete(finalOutput);
         }
-        
-        p.pop();
       };
       
       // Generate a new random seed

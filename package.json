@@ -4,6 +4,7 @@
     "description": "Create, mint, and share animated Spirograph NFTs",
     "private": true,
     "dependencies": {
+        "ethers": "^5.7.2",
         "gif.js": "^0.2.0",
         "p5": "^1.7.0",
         "react": "^18.2.0",

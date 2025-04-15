@@ -28,21 +28,46 @@ const Create = () => {
   const [mintStatus, setMintStatus] = useState(null); // 'success', 'error', or null
   const [mintedCount, setMintedCount] = useState(0);
   const [availabilityMessage, setAvailabilityMessage] = useState('');
+  const [isSeedAvailableState, setIsSeedAvailableState] = useState(true);
 
   // Check NFT availability on load
   useEffect(() => {
-    setMintedCount(getMintedCount());
+    const fetchMintedCount = async () => {
+      try {
+        const count = await getMintedCount();
+        setMintedCount(count);
+      } catch (error) {
+        console.error("Error fetching minted count:", error);
+        // Fallback to 0 if there's an error
+        setMintedCount(0);
+      }
+    };
+
+    fetchMintedCount();
   }, []);
 
   // Check seed availability when it changes
   useEffect(() => {
     if (seed) {
-      const available = isSeedAvailable(seed);
-      if (!available) {
-        setAvailabilityMessage('This design has already been minted! Generate a new one.');
-      } else {
-        setAvailabilityMessage('');
-      }
+      const checkSeedAvailability = async () => {
+        try {
+          const available = await isSeedAvailable(seed);
+          setIsSeedAvailableState(available);
+          
+          if (!available) {
+            setAvailabilityMessage('This design has already been minted! Generate a new one.');
+          } else {
+            setAvailabilityMessage('');
+          }
+        } catch (error) {
+          console.error("Error checking seed availability:", error);
+          // Assume seed is available if there's an error (for graceful degradation)
+          setIsSeedAvailableState(true);
+          setAvailabilityMessage('');
+        }
+      };
+
+      checkSeedAvailability();
     }
   }, [seed]);
 
@@ -78,7 +103,7 @@ const Create = () => {
   };
 
   // Generate a new random design
-  const handleGenerateNew = () => {
+  const handleGenerateNew = async () => {
     // Clear previous state
     setImage(null);
     setAnimatedGif(null);
@@ -86,13 +111,19 @@ const Create = () => {
     setMintStatus(null);
     setAvailabilityMessage('');
     
-    // Find an available seed
-    const newSeed = findAvailableSeed();
-    
-    if (newSeed) {
-      setSeed(newSeed);
-    } else {
-      setAvailabilityMessage('All 10,000 designs have been minted!');
+    try {
+      // Find an available seed
+      const newSeed = await findAvailableSeed();
+      
+      if (newSeed) {
+        setSeed(newSeed);
+      } else {
+        setAvailabilityMessage('All 10,000 designs have been minted!');
+      }
+    } catch (error) {
+      console.error("Error finding available seed:", error);
+      // Fallback to a random seed (1-10000) if there's an error
+      setSeed(Math.floor(Math.random() * 10000) + 1);
     }
   };
 
@@ -115,10 +146,16 @@ const Create = () => {
       return;
     }
     
-    // Check availability
-    if (!isSeedAvailable(seed)) {
-      setAvailabilityMessage('This design has already been minted! Generate a new one.');
-      return;
+    // Check availability once more before minting
+    try {
+      const available = await isSeedAvailable(seed);
+      if (!available) {
+        setAvailabilityMessage('This design has already been minted! Generate a new one.');
+        return;
+      }
+    } catch (error) {
+      console.error("Error checking seed availability:", error);
+      // Continue with mint if we can't check availability
     }
 
     try {
@@ -126,7 +163,7 @@ const Create = () => {
       setMintStatus(null);
 
       // Reserve the seed
-      const reservationResult = reserveSeed(seed);
+      const reservationResult = await reserveSeed(seed);
       
       if (!reservationResult.success) {
         throw new Error(reservationResult.message);
@@ -146,10 +183,17 @@ const Create = () => {
       
       // Success!
       setMintStatus('success');
-      setMintedCount(getMintedCount());
+      
+      // Update minted count
+      try {
+        const count = await getMintedCount();
+        setMintedCount(count);
+      } catch (error) {
+        console.error("Error fetching minted count:", error);
+      }
       
       // Store in local storage for collection page
-      saveUserNFT({
+      await saveUserNFT({
         id: seed,
         params: {
           shape: shape?.type,
@@ -211,7 +255,7 @@ const Create = () => {
             <div className="preview-container">
               <h3>Your Animated Spirograph</h3>
               <div className="animation-preview">
-                <div className="img-container rotating-image">
+                <div className="rotating-image">
                   <img 
                     src={animatedGif} 
                     alt="Animated Spirograph"
@@ -224,7 +268,7 @@ const Create = () => {
                 <button 
                   onClick={handleMint}
                   className="btn-primary"
-                  disabled={isMinting || !isSeedAvailable(seed)}
+                  disabled={isMinting || !isSeedAvailableState}
                 >
                   {isMinting ? 'Minting...' : 'Mint as NFT'}
                 </button>

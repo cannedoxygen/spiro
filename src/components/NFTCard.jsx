@@ -24,7 +24,8 @@ const NFTCard = ({
   
   // Format parameters for display
   const formatParameters = () => {
-    return `R=${parameters.fixedRadius}, r=${parameters.movingRadius}, d=${parameters.offset}`;
+    if (!parameters) return '';
+    return `Shape=${parameters.shape || ''}, R=${parameters.fixedRadius || ''}, r=${parameters.movingRadius || ''}, d=${parameters.offset || ''}`;
   };
   
   // Handle animation playback
@@ -104,7 +105,7 @@ const NFTCard = ({
   
   return (
     <div className="nft-card">
-      <div className="nft-image-container">
+      <div className="nft-image-container" style={{ backgroundColor: 'black' }}>
         {animationFrames && animationFrames.length > 0 ? (
           <img 
             src={isPlaying ? animationFrames[currentFrame] : image} 
@@ -112,11 +113,13 @@ const NFTCard = ({
             className="nft-image"
           />
         ) : (
-          <img 
-            src={image} 
-            alt={`Spirograph NFT #${id}`}
-            className="nft-image"
-          />
+          <div className="preview-image-container">
+            <img 
+              src={image} 
+              alt={`Spirograph NFT #${id}`}
+              className="preview-image"
+            />
+          </div>
         )}
         
         {animationFrames && animationFrames.length > 0 && (
